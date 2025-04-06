@@ -1,18 +1,19 @@
+
 import yfinance as yf
 import pandas as pd
-import pandas_ta as ta
 import streamlit as st
 import matplotlib.pyplot as plt
 from io import BytesIO
 import base64
+import ta  # remplacement de pandas_ta
 
 # Liste de tickers (format Yahoo Finance pour actions FR: ajouter .PA)
 tickers = ["BN.PA", "AI.PA", "ENGI.PA", "ORA.PA", "TTE.PA", "DG.PA", "CS.PA"]
 
-# Fonction pour créer un mini-graph MACD ZL
-def plot_macd_zl(df):
-    macd = df.ta.ema(12) - df.ta.ema(26)
-    signal = macd.ewm(span=9).mean()
+# Fonction pour créer un mini-graph MACD ZL (utilise MACD standard ici)
+def plot_macd(df):
+    macd = ta.trend.macd(df['Close'])
+    signal = ta.trend.macd_signal(df['Close'])
     hist = macd - signal
 
     fig, ax = plt.subplots(figsize=(2, 1))
@@ -62,7 +63,7 @@ for ticker in tickers:
 
         # MM50 Weekly + pente
         weekly = data_w.resample("W").last()
-        mm50 = weekly.ta.sma(50)
+        mm50 = ta.trend.sma_indicator(weekly['Close'], window=50)
         pente = ""
         if mm50.iloc[-1] > mm50.iloc[-2]:
             pente = "🔺"
@@ -72,19 +73,19 @@ for ticker in tickers:
             pente = "➡️"
 
         # EMA13 vs EMA25 H4 et 2D
-        ema13_h4 = data_h4.ta.ema(13)
-        ema25_h4 = data_h4.ta.ema(25)
+        ema13_h4 = ta.trend.ema_indicator(data_h4['Close'], window=13)
+        ema25_h4 = ta.trend.ema_indicator(data_h4['Close'], window=25)
         ema_h4 = "🔺" if ema13_h4.iloc[-1] > ema25_h4.iloc[-1] else "🔻"
 
-        ema13_2d = data_2d.ta.ema(13)
-        ema25_2d = data_2d.ta.ema(25)
+        ema13_2d = ta.trend.ema_indicator(data_2d['Close'], window=13)
+        ema25_2d = ta.trend.ema_indicator(data_2d['Close'], window=25)
         ema_2d = "🔺" if ema13_2d.iloc[-1] > ema25_2d.iloc[-1] else "🔻"
 
         # RSI daily
-        rsi = data.ta.rsi().iloc[-1]
+        rsi = ta.momentum.rsi(data['Close']).iloc[-1]
 
-        # MACD ZL chart
-        macd_img = plot_macd_zl(data.tail(60))
+        # MACD chart
+        macd_img = plot_macd(data.tail(60))
         macd_html = f'<img src="data:image/png;base64,{macd_img}" width="100"/>'
 
         # Ajouter à la table
@@ -96,13 +97,13 @@ for ticker in tickers:
             "EMA H4": ema_h4,
             "EMA 2D": ema_2d,
             "RSI (D)": f"{rsi:.1f}",
-            "MACD ZL (D)": macd_html
+            "MACD (D)": macd_html
         })
 
     except Exception as e:
         st.error(f"Erreur pour {ticker} : {e}")
 
-# Affichage du tableau avec MACD ZL inline
+# Affichage du tableau avec mini-graphe inline
 df_display = pd.DataFrame(table)
-df_display["MACD ZL (D)"] = df_display["MACD ZL (D)"].apply(lambda x: st.markdown(x, unsafe_allow_html=True))
-st.dataframe(df_display.drop(columns=["MACD ZL (D)"]))
+df_display["MACD (D)"] = df_display["MACD (D)"].apply(lambda x: st.markdown(x, unsafe_allow_html=True))
+st.dataframe(df_display.drop(columns=["MACD (D)"]))
